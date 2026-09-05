@@ -1,24 +1,18 @@
 # Host (Linux/macOS) SDL build — included from the project Makefile.
 #
-#   make host                     # SDL2, same PROJECT_KIND as device build
+#   make host                     # SDL2
 #   make host HOST_SDL=3          # SDL3
-#   make host PROJECT_KIND=homebrew
-#   ./example_host [rom]          # optional ROM path (cores); or HOST_ROM=…
+#   ./tgbdual_host [rom]          # optional ROM path (or HOST_ROM=…)
 #
 # Requires: pkg-config + libsdl2-dev / sdl2 (or sdl3).
 
 HOST_SDL   ?= 2
 HOST_SCALE ?= 2
-# Native compiler (do not reuse arm-none-eabi-gcc from sdk/Makefile).
 HOST_CC    ?= cc
+HOST_CXX   ?= c++
 
 HOST_BUILD_DIR := build/host/$(PROJECT_KIND)_sdl$(HOST_SDL)
-
-ifeq ($(PROJECT_KIND),homebrew)
-HOST_BIN := ExampleHB_host
-else
 HOST_BIN := $(CORE_NAME)_host
-endif
 
 ifeq ($(HOST_SDL),3)
 HOST_SDL_PC := sdl3
@@ -30,7 +24,6 @@ endif
 
 HOST_PKG_CFLAGS := $(shell pkg-config --cflags $(HOST_SDL_PC) 2>/dev/null)
 HOST_PKG_LIBS   := $(shell pkg-config --libs $(HOST_SDL_PC) 2>/dev/null)
-# macOS sdl2.pc pulls -lSDL2main which wants SDL_main; we provide main() ourselves.
 HOST_PKG_LIBS   := $(filter-out -lSDL2main,$(HOST_PKG_LIBS))
 ifeq ($(HOST_PKG_LIBS),)
 $(warning pkg-config $(HOST_SDL_PC) not found — host link may fail. Install SDL$(HOST_SDL) devel package.)
@@ -42,6 +35,7 @@ HOST_DEFS := \
 	-DHOST_BUILD=1 \
 	-DHOST_SDL=$(HOST_SDL) \
 	-DHOST_SCALE=$(HOST_SCALE) \
+	-DHOST_APP_MAIN=$(CORE_ENTRY) \
 	-DSDL_MAIN_HANDLED=1 \
 	-DIS_LITTLE_ENDIAN \
 	-DGNW_DISABLE_COMPRESSION \
@@ -56,22 +50,33 @@ HOST_INCLUDES := \
 	-I$(HOST_INC_ROOT)/Core/Inc/porting \
 	-I$(HOST_INC_ROOT)/Core/Src/porting/lib \
 	-I$(HOST_INC_ROOT)/Core/Src/porting/lib/FatFs \
+	$(CORE_C_INCLUDES) \
 	$(HOST_PKG_CFLAGS)
 
 HOST_CFLAGS := -O2 -g -Wall -Wextra -std=c11 \
 	-include host/stubs/config.h \
 	$(HOST_DEFS) $(HOST_INCLUDES)
 
-HOST_SRCS := \
+HOST_CXXFLAGS := -O2 -g -Wall -Wextra -std=c++17 \
+	-fno-exceptions -fno-rtti \
+	-include host/stubs/config.h \
+	$(HOST_DEFS) $(HOST_INCLUDES)
+
+HOST_C_SRCS := \
 	$(CORE_C_SOURCES) \
+	src/bilinear.c \
 	host/crc32.c \
 	host/host_main.c \
 	host/host_platform.c \
 	host/host_emu.c \
 	host/host_i18n.c
 
-HOST_OBJS := $(addprefix $(HOST_BUILD_DIR)/,$(HOST_SRCS:.c=.o))
-HOST_DEPS := $(HOST_OBJS:.o=.d)
+# CORE_CXX_SOURCES already includes gw_core_cxx_support.cpp (sdk/Makefile).
+HOST_CXX_SRCS := $(CORE_CXX_SOURCES)
+HOST_C_OBJS   := $(addprefix $(HOST_BUILD_DIR)/,$(HOST_C_SRCS:.c=.o))
+HOST_CXX_OBJS := $(addprefix $(HOST_BUILD_DIR)/,$(HOST_CXX_SRCS:.cpp=.o))
+HOST_OBJS     := $(HOST_C_OBJS) $(HOST_CXX_OBJS)
+HOST_DEPS     := $(HOST_OBJS:.o=.d)
 
 .PHONY: host host_clean
 
@@ -80,13 +85,32 @@ host: $(HOST_BIN)
 
 $(HOST_BIN): $(HOST_OBJS)
 	$(V)$(ECHO) [ LD HOST ] $@
-	$(V)$(HOST_CC) -o $@ $(HOST_OBJS) $(HOST_PKG_LIBS)
+	$(V)$(HOST_CXX) -o $@ $(HOST_OBJS) $(HOST_PKG_LIBS)
 
-# Explicit pattern under HOST_BUILD_DIR only (do not collide with sdk ARM rules).
 $(HOST_BUILD_DIR)/src/%.o: src/%.c
 	$(V)mkdir -p $(dir $@)
 	$(V)$(ECHO) [ CC HOST ] $<
 	$(V)$(HOST_CC) $(HOST_CFLAGS) -MMD -MP -MF"$(@:%.o=%.d)" -c $< -o $@
+
+$(HOST_BUILD_DIR)/src/porting/%.o: src/porting/%.c
+	$(V)mkdir -p $(dir $@)
+	$(V)$(ECHO) [ CC HOST ] $<
+	$(V)$(HOST_CC) $(HOST_CFLAGS) -MMD -MP -MF"$(@:%.o=%.d)" -c $< -o $@
+
+$(HOST_BUILD_DIR)/src/porting/%.o: src/porting/%.cpp
+	$(V)mkdir -p $(dir $@)
+	$(V)$(ECHO) [ CXX HOST ] $<
+	$(V)$(HOST_CXX) $(HOST_CXXFLAGS) -MMD -MP -MF"$(@:%.o=%.d)" -c $< -o $@
+
+$(HOST_BUILD_DIR)/external/tgbdual-go/gb_core/%.o: external/tgbdual-go/gb_core/%.cpp
+	$(V)mkdir -p $(dir $@)
+	$(V)$(ECHO) [ CXX HOST ] $<
+	$(V)$(HOST_CXX) $(HOST_CXXFLAGS) -MMD -MP -MF"$(@:%.o=%.d)" -c $< -o $@
+
+$(HOST_BUILD_DIR)/$(GNW_CORE_SDK)/src/%.o: $(GNW_CORE_SDK)/src/%.cpp
+	$(V)mkdir -p $(dir $@)
+	$(V)$(ECHO) [ CXX HOST ] $<
+	$(V)$(HOST_CXX) $(HOST_CXXFLAGS) -MMD -MP -MF"$(@:%.o=%.d)" -c $< -o $@
 
 $(HOST_BUILD_DIR)/host/%.o: host/%.c
 	$(V)mkdir -p $(dir $@)
@@ -95,7 +119,7 @@ $(HOST_BUILD_DIR)/host/%.o: host/%.c
 
 host_clean:
 	$(V)rm -rf build/host
-	$(V)rm -f $(CORE_NAME)_host ExampleHB_host
+	$(V)rm -f $(CORE_NAME)_host
 
 clean:: host_clean
 

@@ -1,0 +1,4 @@
+[submodule "external/tgbdual-go"]
+	path = external/tgbdual-go
+	url = https://github.com/sylverb/tgbdual-go.git
+	branch = sd

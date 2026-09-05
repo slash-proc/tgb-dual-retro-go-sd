@@ -20,6 +20,7 @@
 #include "odroid_system.h"
 #include "odroid_overlay.h"
 #include "odroid_settings.h"
+#include "odroid_display.h"
 #include "odroid_input.h"
 #include "odroid_audio.h"
 #include "common.h"
@@ -72,6 +73,7 @@ static uint8_t *ram_pool;
 static size_t ram_pool_size;
 static size_t ram_pool_used;
 static int32_t settings_beep = 1;
+static int32_t settings_palette;
 static state_handler_t host_load_state_cb;
 static state_handler_t host_save_state_cb;
 static const int host_default_slot = 0;
@@ -773,6 +775,16 @@ void odroid_settings_app_int32_set(const char *key, int32_t value)
         settings_beep = value;
 }
 
+int32_t odroid_settings_Palette_get(void)
+{
+    return settings_palette;
+}
+
+void odroid_settings_Palette_set(int32_t value)
+{
+    settings_palette = value;
+}
+
 bool odroid_settings_ActiveGameGenieCodes_is_enabled(char *game_path, int code_index)
 {
     (void)game_path;
@@ -828,7 +840,67 @@ size_t itc_get_free_size(void) { return 64 * 1024; }
 void dtc_init(void) {}
 void *dtc_malloc(size_t size) { return malloc(size); }
 void *dtc_calloc(size_t count, size_t size) { return calloc(count, size); }
-size_t dtc_get_free_size(void) { return 64 * 1024; }
+size_t dtc_get_free_size(void) { return 104 * 1024; }
+
+void lcd_clone(void)
+{
+    memcpy(lcd_get_inactive_buffer(), lcd_get_active_buffer(), GW_LCD_FRAME_SIZE);
+}
+
+bool lcd_sleep_while_swap_pending(void)
+{
+    return false;
+}
+
+odroid_display_scaling_t odroid_display_get_scaling_mode(void)
+{
+    return ODROID_DISPLAY_SCALING_FIT;
+}
+
+odroid_display_filter_t odroid_display_get_filter_mode(void)
+{
+    return ODROID_DISPLAY_FILTER_OFF;
+}
+
+/* Caller frees (device API). */
+char *odroid_system_get_path(emu_path_type_t type, const char *romPath)
+{
+    char *path = (char *)malloc(512);
+    char stem[64];
+    const char *name = romPath;
+
+    if (!path)
+        return NULL;
+    if (name && name[0]) {
+        const char *base = strrchr(name, '/');
+        name = base ? base + 1 : name;
+    } else if (ACTIVE_FILE && ACTIVE_FILE->name[0]) {
+        name = ACTIVE_FILE->name;
+    } else {
+        name = "host";
+    }
+    host_sanitize_stem(stem, sizeof(stem), name);
+
+    switch (type) {
+    case ODROID_PATH_SAVE_SRAM:
+        snprintf(path, 512, "host_saves/%s.sram", stem);
+        break;
+    case ODROID_PATH_SAVE_STATE:
+    case ODROID_PATH_SAVE_STATE_1:
+        snprintf(path, 512, "host_saves/%s.slot0.sav", stem);
+        break;
+    case ODROID_PATH_SAVE_STATE_2:
+        snprintf(path, 512, "host_saves/%s.slot1.sav", stem);
+        break;
+    case ODROID_PATH_SAVE_STATE_3:
+        snprintf(path, 512, "host_saves/%s.slot2.sav", stem);
+        break;
+    default:
+        snprintf(path, 512, "host_saves/%s.path%d", stem, (int)type);
+        break;
+    }
+    return path;
+}
 
 void wdog_refresh(void)
 {
