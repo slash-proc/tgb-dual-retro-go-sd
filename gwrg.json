@@ -2,11 +2,21 @@
   "systems": {
     "gb": {
       "shortName": "GB",
-      "compression": false
+      "compression": false,
+      "runtime": {
+        "$comment": "The port's ROM-header table permits 16 banks of 8 KiB cartridge RAM.",
+        "savestate": { "supported": true },
+        "save": { "supported": true, "bytes": 131072 }
+      }
     },
     "gbc": {
       "shortName": "GBC",
-      "compression": false
+      "compression": false,
+      "runtime": {
+        "$comment": "The port's ROM-header table permits 16 banks of 8 KiB cartridge RAM.",
+        "savestate": { "supported": true },
+        "save": { "supported": true, "bytes": 131072 }
+      }
     }
   }
 }
