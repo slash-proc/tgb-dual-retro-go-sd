@@ -748,7 +748,7 @@ extern "C" void update_cheats_gb() {
  * is needed (unlike the old monolithic-overlay build this file used to
  * target). Needs extern "C" since CORE_ENTRY branches to it by raw symbol
  * name, not a C++-mangled one. */
-extern "C" void app_main_gb_tgbdual(uint8_t load_state, uint8_t start_paused, uint8_t save_slot)
+extern "C" void app_main_gb_tgbdual(uint8_t load_state, uint8_t start_paused, int8_t save_slot)
 {
     printf("app_main_gb_tgbdual\n");
     char palette_values[16];

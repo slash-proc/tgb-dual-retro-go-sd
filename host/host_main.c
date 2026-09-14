@@ -21,7 +21,7 @@
 #ifdef __cplusplus
 extern "C"
 #endif
-void HOST_APP_MAIN(uint8_t load_state, uint8_t start_paused, uint8_t save_slot);
+void HOST_APP_MAIN(uint8_t load_state, uint8_t start_paused, int8_t save_slot);
 
 int main(int argc, char **argv)
 {
