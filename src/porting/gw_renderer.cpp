@@ -137,7 +137,7 @@ int gw_renderer::check_pad()
 
 void gw_renderer::render_screen(byte *buf,int width,int height,int depth)
 {
-   if (tgb_drawFrame && !lcd_is_swap_pending()) {
+   if (tgb_drawFrame) {
       gb_blit((uint16_t *)buf);
       lcd_swap();
    }
