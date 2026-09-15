@@ -1,5 +1,17 @@
 # Changelog
 
+## [v0.1.3] - 2026-09-16
+
+### Fixed
+
+- Fixed the save-slot type in `app_main_gb_tgbdual`.
+- Improved video synchronization by removing the `lcd_is_swap_pending()` check.
+
+### Changed
+
+- Updated the SDK.
+- Updated the changelog for v0.0.2.
+
 ## [v0.1.2] - 2026-09-13
 
 ### Changed
