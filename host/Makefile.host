@@ -2,7 +2,9 @@
 #
 #   make host                     # SDL2
 #   make host HOST_SDL=3          # SDL3
-#   ./tgbdual_host [rom]          # optional ROM path (or HOST_ROM=…)
+#   ./tgbdual_host [rom]                    # optional ROM (or HOST_ROM=…)
+#   ./tgbdual_host --system gbc game.gb     # force GB / GBC / SGB
+#   HOST_SYSTEM=sgb ./tgbdual_host game.gb
 #
 # Requires: pkg-config + libsdl2-dev / sdl2 (or sdl3).
 

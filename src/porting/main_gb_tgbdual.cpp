@@ -17,6 +17,7 @@ extern "C" {
 #include "appid.h"
 #include "main_gb_tgbdual.h"
 #include "heap.hpp"
+#include "gw_malloc.h"
 #include "odroid_overlay.h"
 #include "odroid_settings.h"
 
@@ -54,6 +55,10 @@ static char system_values[16];
 static uint8_t rom_cgb_flag = 0;
 static bool rom_sgb_compatible = false;
 static bool sgb_border_enabled = true;
+static bool have_dmg_bios = false;
+static bool have_cgb_bios = false;
+static byte *dmg_bios_buf = nullptr;
+static byte *cgb_bios_buf = nullptr;
 
 static gb *g_gb = nullptr;
 static gw_renderer *render = nullptr;
@@ -565,17 +570,42 @@ static int gb_console_default(void)
 
 static int gb_console_options(int *opts, int max_opts)
 {
-    /* GBC: only GBC. GB/SGB: GB, plus SGB when the cart supports it. */
+    /* CGB-only ($0143==$C0): GBC only.
+     * CGB-compatible ($80, not $C0): GBC + GB (+ SGB if flagged).
+     * DMG: GB, optional SGB, and GBC when boot ROM / host allows. */
     int n = 0;
-    if (rom_cgb_flag & 0x80) {
+    bool cgb_cart = (rom_cgb_flag & 0x80) != 0;
+    bool cgb_only = (rom_cgb_flag & 0xC0) == 0xC0;
+
+    if (cgb_only) {
         if (n < max_opts)
             opts[n++] = GB_CONSOLE_CGB;
-    } else {
+        return n;
+    }
+
+    if (cgb_cart) {
+        if (n < max_opts)
+            opts[n++] = GB_CONSOLE_CGB;
         if (n < max_opts)
             opts[n++] = GB_CONSOLE_DMG;
         if (rom_sgb_compatible && n < max_opts)
             opts[n++] = GB_CONSOLE_SGB;
+        return n;
     }
+
+    if (n < max_opts)
+        opts[n++] = GB_CONSOLE_DMG;
+    if (rom_sgb_compatible && n < max_opts)
+        opts[n++] = GB_CONSOLE_SGB;
+    /* Device: GBC for DMG carts only with gbc_bios.bin. Host: always
+     * offer GBC so --system gbc works with or without a boot ROM. */
+#ifdef HOST_BUILD
+    if (n < max_opts)
+        opts[n++] = GB_CONSOLE_CGB;
+#else
+    if (have_cgb_bios && n < max_opts)
+        opts[n++] = GB_CONSOLE_CGB;
+#endif
     return n;
 }
 
@@ -748,6 +778,70 @@ extern "C" void update_cheats_gb() {
  * is needed (unlike the old monolithic-overlay build this file used to
  * target). Needs extern "C" since CORE_ENTRY branches to it by raw symbol
  * name, not a C++-mangled one. */
+static byte *gb_try_load_bios(const char *path, size_t expect_min, size_t expect_max, size_t *out_size)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f)
+        return NULL;
+    if (fseek(f, 0, SEEK_END) != 0) {
+        fclose(f);
+        return NULL;
+    }
+    long sz = ftell(f);
+    if (sz < (long)expect_min || sz > (long)expect_max) {
+        fclose(f);
+        return NULL;
+    }
+    if (fseek(f, 0, SEEK_SET) != 0) {
+        fclose(f);
+        return NULL;
+    }
+    byte *buf = (byte *)ram_malloc((size_t)sz);
+    if (!buf) {
+        fclose(f);
+        return NULL;
+    }
+    size_t n = fread(buf, 1, (size_t)sz, f);
+    fclose(f);
+    if (n != (size_t)sz)
+        return NULL;
+    if (out_size)
+        *out_size = (size_t)sz;
+    printf("GB BIOS loaded: %s (%ld bytes)\n", path, sz);
+    return buf;
+}
+
+static void gb_load_boot_roms(void)
+{
+    size_t sz = 0;
+#ifdef HOST_BUILD
+    static const char *dmg_paths[] = {
+        "bios/gb/gb_bios.bin", "./bios/gb/gb_bios.bin", NULL
+    };
+    static const char *cgb_paths[] = {
+        "bios/gb/gbc_bios.bin", "./bios/gb/gbc_bios.bin", NULL
+    };
+#else
+    static const char *dmg_paths[] = { "/bios/gb/gb_bios.bin", NULL };
+    static const char *cgb_paths[] = { "/bios/gb/gbc_bios.bin", NULL };
+#endif
+
+    for (int i = 0; dmg_paths[i]; i++) {
+        dmg_bios_buf = gb_try_load_bios(dmg_paths[i], 0x100, 0x100, &sz);
+        if (dmg_bios_buf) {
+            have_dmg_bios = true;
+            break;
+        }
+    }
+    for (int i = 0; cgb_paths[i]; i++) {
+        cgb_bios_buf = gb_try_load_bios(cgb_paths[i], 0x900, 0x900, &sz);
+        if (cgb_bios_buf) {
+            have_cgb_bios = true;
+            break;
+        }
+    }
+}
+
 extern "C" void app_main_gb_tgbdual(uint8_t load_state, uint8_t start_paused, int8_t save_slot)
 {
     printf("app_main_gb_tgbdual\n");
@@ -820,11 +914,17 @@ extern "C" void app_main_gb_tgbdual(uint8_t load_state, uint8_t start_paused, in
 
     /* WRAM/VRAM via dtc_calloc in cpu::init_ram(); cart SRAM via
      * dtc_calloc in rom::load_rom(). ITCM is reserved for hot code. */
+    gb_load_boot_roms();
+
     render = new gw_renderer(0);
     g_gb = new gb(render, true, true);
+    if (have_dmg_bios)
+        g_gb->set_dmg_boot_rom(dmg_bios_buf, 0x100);
+    if (have_cgb_bios)
+        g_gb->set_cgb_boot_rom(cgb_bios_buf, 0x900);
 
     gb_console_mode = odroid_settings_app_int32_get("GBSystem", gb_console_default());
-    /* Clamp to a mode valid for this cartridge. */
+    /* Clamp to a mode valid for this cartridge (+ optional GBC-via-BIOS). */
     gb_console_mode = gb_console_next(gb_console_mode, 0);
     g_gb->set_console_mode(gb_console_mode);
 
@@ -873,7 +973,7 @@ extern "C" void app_main_gb_tgbdual(uint8_t load_state, uint8_t start_paused, in
     gb_console_label(gb_console_mode, system_values, sizeof(system_values));
     char sgb_border_values[16] = {0};
     odroid_dialog_choice_t options[] = {
-        /* Only cycle when more than one mode is valid (GB↔SGB). GBC is fixed. */
+        /* Cycles GB / SGB / GBC when more than one mode is valid. */
         {301, gw_i18n(gb_i18n_system), system_values, 1, &system_update_cb},
         /* enabled updated each frame: custom palettes only in GB (type 1) */
         {302, gw_i18n(gb_i18n_sgb_border), sgb_border_values, -1, &sgb_border_update_cb},

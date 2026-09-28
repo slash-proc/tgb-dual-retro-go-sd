@@ -40,12 +40,14 @@ make                 # → tgbdual.bin
 make docker          # same inside the builder image
 make host            # → ./tgbdual_host
 ./tgbdual_host /path/to/game.gb
+./tgbdual_host --system gbc /path/to/game.gb   # gb|gbc|sgb (or HOST_SYSTEM=)
 ```
 
 Install on the SD card:
 
 - `/cores/tgbdual.bin`
 - ROMs under `/roms/gb/` (`.gb`) and `/roms/gbc/` (`.gbc`)
+- Optional boot ROMs: `/bios/gb/gb_bios.bin`, `/bios/gb/gbc_bios.bin`
 - Optional Game Genie/Shark: `.ggcodes` next to the ROM
 
 ## Host controls

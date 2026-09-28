@@ -74,6 +74,8 @@ static size_t ram_pool_size;
 static size_t ram_pool_used;
 static int32_t settings_beep = 1;
 static int32_t settings_palette;
+/* -1 = unset → core uses gb_console_default(). Set via --system / HOST_SYSTEM. */
+static int32_t settings_gb_system = -1;
 static state_handler_t host_load_state_cb;
 static state_handler_t host_save_state_cb;
 static const int host_default_slot = 0;
@@ -766,6 +768,8 @@ int32_t odroid_settings_app_int32_get(const char *key, int32_t value_default)
 {
     if (key && strcmp(key, "beep") == 0)
         return settings_beep;
+    if (key && strcmp(key, "GBSystem") == 0 && settings_gb_system >= 0)
+        return settings_gb_system;
     return value_default;
 }
 
@@ -773,6 +777,8 @@ void odroid_settings_app_int32_set(const char *key, int32_t value)
 {
     if (key && strcmp(key, "beep") == 0)
         settings_beep = value;
+    if (key && strcmp(key, "GBSystem") == 0)
+        settings_gb_system = value;
 }
 
 int32_t odroid_settings_Palette_get(void)
