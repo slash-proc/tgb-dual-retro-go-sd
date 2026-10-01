@@ -5,18 +5,67 @@
       "compression": false,
       "runtime": {
         "$comment": "The port's ROM-header table permits 16 banks of 8 KiB cartridge RAM.",
-        "savestate": { "supported": true },
-        "save": { "supported": true, "bytes": 131072 }
-      }
+        "savestate": {
+          "supported": true
+        },
+        "save": {
+          "supported": true,
+          "bytes": 131072
+        }
+      },
+      "biosDir": "gb",
+      "bios": [
+        {
+          "id": "gb-boot",
+          "filename": "gb_bios.bin",
+          "required": false,
+          "label": {
+            "en": "Game Boy boot ROM"
+          },
+          "description": {
+            "en": "Optional. Enables the original boot sequence; games also run without it."
+          }
+        },
+        {
+          "id": "gbc-boot",
+          "filename": "gbc_bios.bin",
+          "required": false,
+          "label": {
+            "en": "Game Boy Color boot ROM"
+          },
+          "description": {
+            "en": "Optional. Enables Game Boy games to run in GBC mode with boot-ROM colorization."
+          }
+        }
+      ]
     },
     "gbc": {
       "shortName": "GBC",
       "compression": false,
       "runtime": {
         "$comment": "The port's ROM-header table permits 16 banks of 8 KiB cartridge RAM.",
-        "savestate": { "supported": true },
-        "save": { "supported": true, "bytes": 131072 }
-      }
+        "savestate": {
+          "supported": true
+        },
+        "save": {
+          "supported": true,
+          "bytes": 131072
+        }
+      },
+      "biosDir": "gb",
+      "bios": [
+        {
+          "id": "gbc-boot",
+          "filename": "gbc_bios.bin",
+          "required": false,
+          "label": {
+            "en": "Game Boy Color boot ROM"
+          },
+          "description": {
+            "en": "Optional. Enables the original boot sequence; games also run without it."
+          }
+        }
+      ]
     }
   }
 }

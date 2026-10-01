@@ -194,6 +194,8 @@ void operator delete[](void *p, size_t s) { (void)p; (void)s; }
  * though nothing here should ever actually reach them at runtime (see
  * file header comment).
  * ==================================================================== */
+/* Desktop builds use the runtime supplied by the host C++ toolchain. */
+#ifndef HOST_BUILD
 extern "C" void __cxa_pure_virtual()
 {
     while (1) { }
@@ -251,3 +253,5 @@ extern "C" int __gxx_personality_v0(int, int, unsigned long long, void *, void *
 namespace __gnu_cxx {
 void __verbose_terminate_handler() { abort(); }
 }
+
+#endif /* !HOST_BUILD */
